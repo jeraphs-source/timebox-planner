@@ -39,14 +39,42 @@ function makeSlots() {
   return slots;
 }
 
-const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요
-• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다
-• 예: 오전 진료 준비
-• 예: 보호자 연락
-• 예: 퇴근 전 정산 확인";
+const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요\n• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다\n• 예: 오전 진료 준비\n• 예: 보호자 연락\n• 예: 퇴근 전 정산 확인";
 
-const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요
-• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
+const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요\n• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
+
+function isOnlyBrainDumpGuideText(value) {
+  if (!value || typeof value !== "string") return false;
+
+  const normalized = value
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+
+  const oldNormalized = OLD_BRAIN_DUMP_TEMPLATE
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n");
+
+  const placeholderNormalized = BRAIN_DUMP_PLACEHOLDER
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n");
+
+  return (
+    normalized === oldNormalized ||
+    normalized === placeholderNormalized ||
+    (
+      normalized.includes("오늘 떠오르는 일을 모두 적어두세요") &&
+      normalized.includes("줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다") &&
+      normalized.includes("예: 오전 진료 준비") &&
+      normalized.includes("예: 보호자 연락") &&
+      normalized.includes("예: 퇴근 전 정산 확인")
+    )
+  );
+}
 
 function emptyDay() {
   return {
@@ -62,7 +90,7 @@ function emptyDay() {
 function mergeDay(value) {
   const base = emptyDay();
   if (!value || typeof value !== "object") return base;
-  const cleanedBrainDump = value.brainDump === OLD_BRAIN_DUMP_TEMPLATE ? "" : value.brainDump;
+  const cleanedBrainDump = isOnlyBrainDumpGuideText(value.brainDump) ? "" : value.brainDump;
   return {
     ...base,
     ...value,
@@ -165,7 +193,12 @@ export default function App() {
       try {
         setSaveStatus("저장 중...");
         const ref = doc(db, "users", user.uid, "dailyPlans", date);
-        await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+        const dataToSave = {
+          ...data,
+          brainDump: isOnlyBrainDumpGuideText(data.brainDump) ? "" : data.brainDump,
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(ref, dataToSave, { merge: true });
         setSaveStatus("저장됨");
         setTimeout(() => setSaveStatus("자동 저장 켜짐"), 1200);
       } catch (error) {
