@@ -456,6 +456,21 @@ export default function App() {
       return;
     }
 
+    if (e.key === "Enter" && start === end) {
+      const trimmedLine = line.trimStart();
+      const leadingSpaces = line.slice(0, line.length - trimmedLine.length);
+      const bulletMarks = ["•", "◦", "▪"];
+      const bullet = bulletMarks.find((mark) => trimmedLine === mark || trimmedLine.startsWith(`${mark} `));
+
+      if (bullet) {
+        e.preventDefault();
+        const prefix = `${leadingSpaces}${bullet} `;
+        const newText = replaceTextRange(value, start, end, lineBreak + prefix);
+        updateText(newText, start + lineBreak.length + prefix.length);
+      }
+      return;
+    }
+
     if (e.key !== "Tab") return;
 
     e.preventDefault();
