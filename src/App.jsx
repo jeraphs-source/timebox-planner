@@ -369,7 +369,34 @@ export default function App() {
     setDragPayload({ type, index, text });
   }
 
-load.type === "do") next.dos[dragPayload.index] = "";
+  function onDrop(target, index) {
+    if (!dragPayload?.text) return;
+    pushHistory();
+    setData((prev) => {
+      const next = clone(prev);
+
+      if (target === "priority") {
+        const movedPriority =
+          dragPayload.type === "priority"
+            ? clone(next.priorities[dragPayload.index] || { text: dragPayload.text, done: false })
+            : { text: dragPayload.text, done: false };
+
+        if (dragPayload.type === "priority" && dragPayload.index === index) return next;
+
+        if (dragPayload.type === "priority") {
+          next.priorities[dragPayload.index] = { text: "", done: false };
+        }
+
+        for (let i = next.priorities.length - 1; i > index; i -= 1) {
+          next.priorities[i] = next.priorities[i - 1];
+        }
+        next.priorities[index] = movedPriority;
+
+        if (dragPayload.type === "plan") {
+          next.plans[dragPayload.index] = "";
+          next.completed[dragPayload.index] = false;
+        }
+        if (dragPayload.type === "do") next.dos[dragPayload.index] = "";
 
         return next;
       }
