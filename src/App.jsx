@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDIEPk5rt_1MyP_uCSKk2ppySackEPYkGg",
@@ -90,8 +90,8 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [dragPayload, setDragPayload] = useState(null);
   const [selectedRows, setSelectedRows] = useState(new Set());
-  const applyingRemote = useRef(false);
   const saveTimer = useRef(null);
+  const justLoaded = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -109,35 +109,44 @@ export default function App() {
       return;
     }
 
-    setDayLoaded(false);
-    setSaveStatus("불러오는 중...");
-    setSelectedRows(new Set());
+    let cancelled = false;
 
-    const ref = doc(db, "users", user.uid, "dailyPlans", date);
-    const unsubscribe = onSnapshot(
-      ref,
-      (snapshot) => {
-        applyingRemote.current = true;
+    async function loadDay() {
+      setDayLoaded(false);
+      setSaveStatus("불러오는 중...");
+      setSelectedRows(new Set());
+
+      try {
+        const ref = doc(db, "users", user.uid, "dailyPlans", date);
+        const snapshot = await getDoc(ref);
+        if (cancelled) return;
+
+        justLoaded.current = true;
         setData(snapshot.exists() ? mergeDay(snapshot.data()) : emptyDay());
         setDayLoaded(true);
         setSaveStatus("자동 저장 켜짐");
-        setTimeout(() => {
-          applyingRemote.current = false;
-        }, 0);
-      },
-      (error) => {
-        setSaveStatus("불러오기 실패: Firestore 규칙 확인 필요");
-        setDayLoaded(true);
+      } catch (error) {
+        if (cancelled) return;
         console.error(error);
+        setDayLoaded(true);
+        setSaveStatus("불러오기 실패: Firestore 규칙 확인 필요");
       }
-    );
+    }
 
-    return () => unsubscribe();
+    loadDay();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, date]);
 
   useEffect(() => {
     if (!user || !dayLoaded) return;
-    if (applyingRemote.current) return;
+
+    if (justLoaded.current) {
+      justLoaded.current = false;
+      return;
+    }
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
