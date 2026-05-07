@@ -39,10 +39,19 @@ function makeSlots() {
   return slots;
 }
 
+const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요
+• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다
+• 예: 오전 진료 준비
+• 예: 보호자 연락
+• 예: 퇴근 전 정산 확인";
+
+const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요
+• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
+
 function emptyDay() {
   return {
     priorities: Array.from({ length: 7 }, () => ({ text: "", done: false })),
-    brainDump: "• 오늘 떠오르는 일을 모두 적어두세요\n• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다\n• 예: 오전 진료 준비\n• 예: 보호자 연락\n• 예: 퇴근 전 정산 확인",
+    brainDump: "",
     reflection: "",
     plans: Array.from({ length: 27 }, () => ""),
     dos: Array.from({ length: 27 }, () => ""),
@@ -53,9 +62,11 @@ function emptyDay() {
 function mergeDay(value) {
   const base = emptyDay();
   if (!value || typeof value !== "object") return base;
+  const cleanedBrainDump = value.brainDump === OLD_BRAIN_DUMP_TEMPLATE ? "" : value.brainDump;
   return {
     ...base,
     ...value,
+    brainDump: cleanedBrainDump || "",
     priorities: Array.from({ length: 7 }, (_, i) => value.priorities?.[i] || base.priorities[i]),
     plans: Array.from({ length: 27 }, (_, i) => value.plans?.[i] || ""),
     dos: Array.from({ length: 27 }, (_, i) => value.dos?.[i] || ""),
@@ -497,7 +508,8 @@ export default function App() {
               <textarea
                 value={data.brainDump}
                 onChange={(e) => setData((prev) => ({ ...prev, brainDump: e.target.value }))}
-                className="min-h-56 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none focus:border-slate-400 print:min-h-40 print:rounded-none print:bg-white"
+                placeholder={BRAIN_DUMP_PLACEHOLDER}
+                className="min-h-56 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none focus:border-slate-400 placeholder:text-slate-400 print:min-h-40 print:rounded-none print:bg-white"
               />
             </div>
 
