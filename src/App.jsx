@@ -39,41 +39,44 @@ function makeSlots() {
   return slots;
 }
 
-const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요\n• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다\n• 예: 오전 진료 준비\n• 예: 보호자 연락\n• 예: 퇴근 전 정산 확인";
+const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요
+• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다
+• 예: 오전 진료 준비
+• 예: 보호자 연락
+• 예: 퇴근 전 정산 확인";
 
-const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요\n• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
+const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요
+• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
 
-function isOnlyBrainDumpGuideText(value) {
-  if (!value || typeof value !== "string") return false;
+function cleanBrainDumpValue(value) {
+  if (!value || typeof value !== "string") return "";
 
-  const normalized = value
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n");
+  return value
+    .split(String.fromCharCode(13)).join("")
+    .split(String.fromCharCode(10))
+    .filter((line) => {
+      let normalized = line.trim();
+      while (
+        normalized.startsWith("•") ||
+        normalized.startsWith("◦") ||
+        normalized.startsWith("▪") ||
+        normalized.startsWith("-")
+      ) {
+        normalized = normalized.slice(1).trim();
+      }
+      if (normalized.endsWith(".")) normalized = normalized.slice(0, -1).trim();
 
-  const oldNormalized = OLD_BRAIN_DUMP_TEMPLATE
-    .split("\n")
-    .map((line) => line.trim())
-    .join("\n");
+      const isGuideLine =
+        normalized === "오늘 떠오르는 일을 모두 적어두세요" ||
+        normalized === "줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다" ||
+        normalized === "예: 오전 진료 준비" ||
+        normalized === "예: 보호자 연락" ||
+        normalized === "예: 퇴근 전 정산 확인";
 
-  const placeholderNormalized = BRAIN_DUMP_PLACEHOLDER
-    .split("\n")
-    .map((line) => line.trim())
-    .join("\n");
-
-  return (
-    normalized === oldNormalized ||
-    normalized === placeholderNormalized ||
-    (
-      normalized.includes("오늘 떠오르는 일을 모두 적어두세요") &&
-      normalized.includes("줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다") &&
-      normalized.includes("예: 오전 진료 준비") &&
-      normalized.includes("예: 보호자 연락") &&
-      normalized.includes("예: 퇴근 전 정산 확인")
-    )
-  );
+      return !isGuideLine;
+    })
+    .join(String.fromCharCode(10))
+    .trim();
 }
 
 function emptyDay() {
@@ -90,7 +93,7 @@ function emptyDay() {
 function mergeDay(value) {
   const base = emptyDay();
   if (!value || typeof value !== "object") return base;
-  const cleanedBrainDump = isOnlyBrainDumpGuideText(value.brainDump) ? "" : value.brainDump;
+  const cleanedBrainDump = cleanBrainDumpValue(value.brainDump);
   return {
     ...base,
     ...value,
@@ -115,6 +118,10 @@ function normalizeLines(text) {
 
 function classNames(...items) {
   return items.filter(Boolean).join(" ");
+}
+
+function replaceTextRange(value, start, end, replacement) {
+  return value.slice(0, start) + replacement + value.slice(end);
 }
 
 export default function App() {
@@ -195,7 +202,7 @@ export default function App() {
         const ref = doc(db, "users", user.uid, "dailyPlans", date);
         const dataToSave = {
           ...data,
-          brainDump: isOnlyBrainDumpGuideText(data.brainDump) ? "" : data.brainDump,
+          brainDump: cleanBrainDumpValue(data.brainDump),
           updatedAt: serverTimestamp(),
         };
         await setDoc(ref, dataToSave, { merge: true });
@@ -362,19 +369,17 @@ export default function App() {
     setDragPayload({ type, index, text });
   }
 
-  function onDrop(target, index) {
-    if (!dragPayload?.text) return;
-    pushHistory();
-    setData((prev) => {
-      const next = clone(prev);
-      if (target === "priority") next.priorities[index].text = dragPayload.text;
+load.type === "do") next.dos[dragPayload.index] = "";
+
+        return next;
+      }
+
       if (target === "plan") next.plans[index] = dragPayload.text;
       if (target === "do") next.dos[index] = dragPayload.text;
 
       const sameCell = dragPayload.type === target && dragPayload.index === index;
       const keepOriginal = dragPayload.type === "priority" && target !== "priority";
       if (!sameCell && !keepOriginal) {
-        if (dragPayload.type === "priority") next.priorities[dragPayload.index] = { text: "", done: false };
         if (dragPayload.type === "plan") {
           next.plans[dragPayload.index] = "";
           next.completed[dragPayload.index] = false;
@@ -384,6 +389,69 @@ export default function App() {
       return next;
     });
     setDragPayload(null);
+  }
+
+  function handleBulletTextareaKeyDown(e, field) {
+    const textarea = e.currentTarget;
+    const value = textarea.value || "";
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const lineBreak = String.fromCharCode(10);
+    const lineStart = value.lastIndexOf(lineBreak, start - 1) + 1;
+    const nextLineBreak = value.indexOf(lineBreak, start);
+    const lineEnd = nextLineBreak === -1 ? value.length : nextLineBreak;
+    const line = value.slice(lineStart, lineEnd);
+
+    const updateText = (newText, cursorPosition) => {
+      setData((prev) => ({ ...prev, [field]: newText }));
+      window.requestAnimationFrame(() => {
+        textarea.selectionStart = cursorPosition;
+        textarea.selectionEnd = cursorPosition;
+      });
+    };
+
+    if (e.key === " " && start === end) {
+      const beforeCursorOnLine = value.slice(lineStart, start);
+      if (beforeCursorOnLine.trim() === "*") {
+        e.preventDefault();
+        const starIndex = beforeCursorOnLine.indexOf("*");
+        const indent = beforeCursorOnLine.slice(0, starIndex);
+        const replacement = `${indent}• `;
+        updateText(replaceTextRange(value, lineStart, start, replacement), lineStart + replacement.length);
+      }
+      return;
+    }
+
+    if (e.key !== "Tab") return;
+
+    e.preventDefault();
+
+    let content = line.trimStart();
+    while (
+      content.startsWith("•") ||
+      content.startsWith("◦") ||
+      content.startsWith("▪") ||
+      content.startsWith("-")
+    ) {
+      content = content.slice(1).trimStart();
+    }
+
+    let newLine = line;
+    if (e.shiftKey) {
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith("◦")) {
+        newLine = `• ${content}`;
+      } else if (line.startsWith("  ")) {
+        newLine = line.slice(2);
+      }
+    } else {
+      newLine = `  ◦ ${content}`;
+    }
+
+    const newText = replaceTextRange(value, lineStart, lineEnd, newLine);
+    const cursorDelta = newLine.length - line.length;
+    const nextCursor = Math.max(lineStart, start + cursorDelta);
+    updateText(newText, nextCursor);
   }
 
   function toggleRow(index) {
@@ -539,10 +607,11 @@ export default function App() {
               <h2 className="text-xl font-black">Brain Dump</h2>
               <p className="mb-3 text-sm text-slate-500">생각나는 일을 먼저 쏟아낸 뒤, 복사해서 시간표에 붙여넣으세요.</p>
               <textarea
-                value={data.brainDump}
+                value={cleanBrainDumpValue(data.brainDump)}
                 onChange={(e) => setData((prev) => ({ ...prev, brainDump: e.target.value }))}
+                onKeyDown={(e) => handleBulletTextareaKeyDown(e, "brainDump")}
                 placeholder={BRAIN_DUMP_PLACEHOLDER}
-                className="min-h-56 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none focus:border-slate-400 placeholder:text-slate-400 print:min-h-40 print:rounded-none print:bg-white"
+                className="min-h-[21rem] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none focus:border-slate-400 placeholder:text-slate-400 print:min-h-40 print:rounded-none print:bg-white"
               />
             </div>
 
@@ -552,6 +621,7 @@ export default function App() {
               <textarea
                 value={data.reflection}
                 onChange={(e) => setData((prev) => ({ ...prev, reflection: e.target.value }))}
+                onKeyDown={(e) => handleBulletTextareaKeyDown(e, "reflection")}
                 placeholder="예: 오전 진료가 길어져 행정업무가 밀림. 내일 10:00에 먼저 처리."
                 className="min-h-40 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none focus:border-slate-400 print:min-h-32 print:rounded-none print:bg-white"
               />
