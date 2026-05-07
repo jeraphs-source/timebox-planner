@@ -39,14 +39,21 @@ function makeSlots() {
   return slots;
 }
 
-const OLD_BRAIN_DUMP_TEMPLATE = "• 오늘 떠오르는 일을 모두 적어두세요
-• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다
-• 예: 오전 진료 준비
-• 예: 보호자 연락
-• 예: 퇴근 전 정산 확인";
+const OLD_BRAIN_DUMP_LINES = [
+  "• 오늘 떠오르는 일을 모두 적어두세요",
+  "• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다",
+  "• 예: 오전 진료 준비",
+  "• 예: 보호자 연락",
+  "• 예: 퇴근 전 정산 확인",
+];
 
-const BRAIN_DUMP_PLACEHOLDER = "• 오늘 떠오르는 일을 모두 적어두세요
-• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.";
+const BRAIN_DUMP_PLACEHOLDER_LINES = [
+  "• 오늘 떠오르는 일을 모두 적어두세요",
+  "• 줄바꿈된 내용을 복사해서 Plan/Do 칸에 붙여넣을 수 있습니다.",
+];
+
+const OLD_BRAIN_DUMP_TEMPLATE = OLD_BRAIN_DUMP_LINES.join(String.fromCharCode(10));
+const BRAIN_DUMP_PLACEHOLDER = BRAIN_DUMP_PLACEHOLDER_LINES.join(String.fromCharCode(10));
 
 function cleanBrainDumpValue(value) {
   if (!value || typeof value !== "string") return "";
