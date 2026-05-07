@@ -120,7 +120,7 @@ export default function App() {
         applyingRemote.current = true;
         setData(snapshot.exists() ? mergeDay(snapshot.data()) : emptyDay());
         setDayLoaded(true);
-        setSaveStatus("동기화됨");
+        setSaveStatus("자동 저장 켜짐");
         setTimeout(() => {
           applyingRemote.current = false;
         }, 0);
@@ -139,7 +139,6 @@ export default function App() {
     if (!user || !dayLoaded) return;
     if (applyingRemote.current) return;
 
-    setSaveStatus("저장 대기 중...");
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     saveTimer.current = setTimeout(async () => {
@@ -148,11 +147,12 @@ export default function App() {
         const ref = doc(db, "users", user.uid, "dailyPlans", date);
         await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
         setSaveStatus("저장됨");
+        setTimeout(() => setSaveStatus("자동 저장 켜짐"), 1200);
       } catch (error) {
         console.error(error);
         setSaveStatus("저장 실패: Firestore 규칙 확인 필요");
       }
-    }, 600);
+    }, 1000);
 
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
