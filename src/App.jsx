@@ -641,7 +641,7 @@ export default function App() {
               <h2 className="text-xl font-black">Brain Dump</h2>
               <p className="mb-3 text-sm text-slate-500">생각나는 일을 먼저 쏟아낸 뒤, 복사해서 시간표에 붙여넣으세요.</p>
               <textarea
-                value={cleanBrainDumpValue(data.brainDump)}
+                value={data.brainDump}
                 onChange={(e) => setData((prev) => ({ ...prev, brainDump: e.target.value }))}
                 onKeyDown={(e) => handleBulletTextareaKeyDown(e, "brainDump")}
                 placeholder={BRAIN_DUMP_PLACEHOLDER}
