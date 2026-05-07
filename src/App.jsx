@@ -378,7 +378,7 @@ export default function App() {
 
   function onDrop(target, index) {
     if (!dragPayload?.text) return;
-    pushHistory();
+
     setData((prev) => {
       const next = clone(prev);
 
@@ -388,16 +388,44 @@ export default function App() {
             ? clone(next.priorities[dragPayload.index] || { text: dragPayload.text, done: false })
             : { text: dragPayload.text, done: false };
 
-        if (dragPayload.type === "priority" && dragPayload.index === index) return next;
+        if (dragPayload.type === "priority" && dragPayload.index === index) {
+          setDragPayload(null);
+          return next;
+        }
+
+        const targetHasText = Boolean((next.priorities[index]?.text || "").trim());
+        const emptySlotBelow = next.priorities.findIndex((item, itemIndex) => {
+          if (itemIndex < index) return false;
+          if (dragPayload.type === "priority" && itemIndex === dragPayload.index) return false;
+          return !Boolean((item?.text || "").trim());
+        });
+
+        if (targetHasText && emptySlotBelow === -1) {
+          setSaveStatus("아래에 빈 우선순위 칸이 없어 이동하지 않았습니다");
+          setDragPayload(null);
+          return next;
+        }
+
+        pushHistory();
+
+        if (targetHasText) {
+          const lastIndexToShift = emptySlotBelow;
+          for (let i = lastIndexToShift; i > index; i -= 1) {
+            next.priorities[i] = next.priorities[i - 1];
+          }
+        }
+
+        next.priorities[index] = movedPriority;
 
         if (dragPayload.type === "priority") {
-          next.priorities[dragPayload.index] = { text: "", done: false };
+          if (dragPayload.index < index) {
+            next.priorities[dragPayload.index] = { text: "", done: false };
+          } else if (dragPayload.index > index && !targetHasText) {
+            next.priorities[dragPayload.index] = { text: "", done: false };
+          } else if (dragPayload.index > index && targetHasText) {
+            next.priorities[dragPayload.index + 1] = { text: "", done: false };
+          }
         }
-
-        for (let i = next.priorities.length - 1; i > index; i -= 1) {
-          next.priorities[i] = next.priorities[i - 1];
-        }
-        next.priorities[index] = movedPriority;
 
         if (dragPayload.type === "plan") {
           next.plans[dragPayload.index] = "";
@@ -405,8 +433,11 @@ export default function App() {
         }
         if (dragPayload.type === "do") next.dos[dragPayload.index] = "";
 
+        setDragPayload(null);
         return next;
       }
+
+      pushHistory();
 
       if (target === "plan") next.plans[index] = dragPayload.text;
       if (target === "do") next.dos[index] = dragPayload.text;
@@ -420,9 +451,10 @@ export default function App() {
         }
         if (dragPayload.type === "do") next.dos[dragPayload.index] = "";
       }
+
+      setDragPayload(null);
       return next;
     });
-    setDragPayload(null);
   }
 
   function handleBulletTextareaKeyDown(e, field) {
