@@ -373,32 +373,48 @@ export default function App() {
 
   function onDragStart(type, index, text) {
     if (!text) return;
-    setDragPayload({ type, index, text });
+    setDragPayload({
+      type,
+      index,
+      text,
+      done: type === "priority" ? Boolean(data.priorities[index]?.done) : false,
+      completed: type === "plan" ? Boolean(data.completed[index]) : false,
+    });
   }
 
   function onDrop(target, index) {
     if (!dragPayload?.text) return;
 
+    function textExists(value) {
+      return Boolean(String(value || "").trim());
+    }
+
     setData((prev) => {
       const next = clone(prev);
 
-      if (target === "priority") {
-        const movedPriority =
-          dragPayload.type === "priority"
-            ? clone(next.priorities[dragPayload.index] || { text: dragPayload.text, done: false })
-            : { text: dragPayload.text, done: false };
+      const isPriorityTarget = target === "priority";
+      const isPlanTarget = target === "plan";
+      const isDoTarget = target === "do";
+      const sameType = dragPayload.type === target;
+      const sameCell = sameType && dragPayload.index === index;
 
-        if (dragPayload.type === "priority" && dragPayload.index === index) {
-          setDragPayload(null);
-          return next;
+      if (sameCell) {
+        setDragPayload(null);
+        return next;
+      }
+
+      if (isPriorityTarget) {
+        const arr = next.priorities;
+        const targetHasText = textExists(arr[index]?.text);
+        let emptySlotBelow = -1;
+
+        for (let i = index; i < arr.length; i += 1) {
+          const sourceCanBeEmpty = sameType && i === dragPayload.index && dragPayload.index > index;
+          if (sourceCanBeEmpty || !textExists(arr[i]?.text)) {
+            emptySlotBelow = i;
+            break;
+          }
         }
-
-        const targetHasText = Boolean((next.priorities[index]?.text || "").trim());
-        const emptySlotBelow = next.priorities.findIndex((item, itemIndex) => {
-          if (itemIndex < index) return false;
-          if (dragPayload.type === "priority" && itemIndex === dragPayload.index) return false;
-          return !Boolean((item?.text || "").trim());
-        });
 
         if (targetHasText && emptySlotBelow === -1) {
           setSaveStatus("아래에 빈 우선순위 칸이 없어 이동하지 않았습니다");
@@ -408,48 +424,84 @@ export default function App() {
 
         pushHistory();
 
+        const movedItem =
+          dragPayload.type === "priority"
+            ? { text: dragPayload.text, done: Boolean(dragPayload.done) }
+            : { text: dragPayload.text, done: false };
+
         if (targetHasText) {
-          const lastIndexToShift = emptySlotBelow;
-          for (let i = lastIndexToShift; i > index; i -= 1) {
-            next.priorities[i] = next.priorities[i - 1];
+          for (let i = emptySlotBelow; i > index; i -= 1) {
+            arr[i] = arr[i - 1];
           }
         }
 
-        next.priorities[index] = movedPriority;
+        arr[index] = movedItem;
 
-        if (dragPayload.type === "priority") {
-          if (dragPayload.index < index) {
-            next.priorities[dragPayload.index] = { text: "", done: false };
-          } else if (dragPayload.index > index && !targetHasText) {
-            next.priorities[dragPayload.index] = { text: "", done: false };
-          } else if (dragPayload.index > index && targetHasText) {
-            next.priorities[dragPayload.index + 1] = { text: "", done: false };
-          }
+        const sourceUsedAsEmpty = sameType && dragPayload.index > index && targetHasText && emptySlotBelow === dragPayload.index;
+        if (dragPayload.type === "priority" && !sourceUsedAsEmpty) {
+          arr[dragPayload.index] = { text: "", done: false };
         }
-
         if (dragPayload.type === "plan") {
           next.plans[dragPayload.index] = "";
           next.completed[dragPayload.index] = false;
         }
-        if (dragPayload.type === "do") next.dos[dragPayload.index] = "";
+        if (dragPayload.type === "do") {
+          next.dos[dragPayload.index] = "";
+        }
 
         setDragPayload(null);
         return next;
       }
 
-      pushHistory();
+      if (isPlanTarget || isDoTarget) {
+        const arr = isPlanTarget ? next.plans : next.dos;
+        const targetHasText = textExists(arr[index]);
+        let emptySlotBelow = -1;
 
-      if (target === "plan") next.plans[index] = dragPayload.text;
-      if (target === "do") next.dos[index] = dragPayload.text;
-
-      const sameCell = dragPayload.type === target && dragPayload.index === index;
-      const keepOriginal = dragPayload.type === "priority" && target !== "priority";
-      if (!sameCell && !keepOriginal) {
-        if (dragPayload.type === "plan") {
-          next.plans[dragPayload.index] = "";
-          next.completed[dragPayload.index] = false;
+        for (let i = index; i < arr.length; i += 1) {
+          const sourceCanBeEmpty = sameType && i === dragPayload.index && dragPayload.index > index;
+          if (sourceCanBeEmpty || !textExists(arr[i])) {
+            emptySlotBelow = i;
+            break;
+          }
         }
-        if (dragPayload.type === "do") next.dos[dragPayload.index] = "";
+
+        if (targetHasText && emptySlotBelow === -1) {
+          setSaveStatus(isPlanTarget ? "아래에 빈 Plan 칸이 없어 이동하지 않았습니다" : "아래에 빈 Do 칸이 없어 이동하지 않았습니다");
+          setDragPayload(null);
+          return next;
+        }
+
+        pushHistory();
+
+        if (targetHasText) {
+          for (let i = emptySlotBelow; i > index; i -= 1) {
+            arr[i] = arr[i - 1];
+            if (isPlanTarget) next.completed[i] = next.completed[i - 1];
+          }
+        }
+
+        arr[index] = dragPayload.text;
+        if (isPlanTarget) next.completed[index] = dragPayload.type === "plan" ? Boolean(dragPayload.completed) : false;
+
+        const sourceUsedAsEmpty = sameType && dragPayload.index > index && targetHasText && emptySlotBelow === dragPayload.index;
+        const keepOriginal = dragPayload.type === "priority" && target !== "priority";
+
+        if (!keepOriginal && !sourceUsedAsEmpty) {
+          if (dragPayload.type === "plan") {
+            next.plans[dragPayload.index] = "";
+            next.completed[dragPayload.index] = false;
+          }
+          if (dragPayload.type === "do") {
+            next.dos[dragPayload.index] = "";
+          }
+          if (dragPayload.type === "priority") {
+            next.priorities[dragPayload.index] = { text: "", done: false };
+          }
+        }
+
+        setDragPayload(null);
+        return next;
       }
 
       setDragPayload(null);
